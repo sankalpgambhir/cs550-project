@@ -1,0 +1,126 @@
+@misc{BibliographyManagementLaTeX,
+  title = {{Bibliography management in LaTeX}},
+  howpublished = {https://overleaf.com/learn/latex/Bibliography\_management\_in\_LaTeX}
+}
+
+@inproceedings{serval,
+  title={Scaling symbolic evaluation for automated verification of systems code with Serval},
+  author={Nelson, Luke and Bornholt, James and Gu, Ronghui and Baumann, Andrew and Torlak, Emina and Wang, Xi},
+  booktitle={Proceedings of the 27th ACM Symposium on Operating Systems Principles},
+  pages={225--242},
+  year={2019}
+}
+
+@article{sel4,
+  title={Comprehensive formal verification of an OS microkernel},
+  author={Klein, Gerwin and Andronick, June and Elphinstone, Kevin and Murray, Toby and Sewell, Thomas and Kolanski, Rafal and Heiser, Gernot},
+  journal={ACM Transactions on Computer Systems (TOCS)},
+  volume={32},
+  number={1},
+  pages={1--70},
+  year={2014},
+  publisher={ACM New York, NY, USA}
+}
+
+@inproceedings{certikos,
+  title={$\{$CertiKOS$\}$: An Extensible Architecture for Building Certified Concurrent $\{$OS$\}$ Kernels},
+  author={Gu, Ronghui and Shao, Zhong and Chen, Hao and Wu, Xiongnan Newman and Kim, Jieung and Sj{\"o}berg, Vilhelm and Costanzo, David},
+  booktitle={12th USENIX Symposium on Operating Systems Design and Implementation (OSDI 16)},
+  pages={653--669},
+  year={2016}
+}
+
+@inproceedings{komodo,
+  title={Komodo: Using verification to disentangle secure-enclave hardware from software},
+  author={Ferraiuolo, Andrew and Baumann, Andrew and Hawblitzel, Chris and Parno, Bryan},
+  booktitle={Proceedings of the 26th Symposium on Operating Systems Principles},
+  pages={287--305},
+  year={2017}
+}
+
+@inproceedings{keystone,
+  title={Keystone: An open framework for architecting trusted execution environments},
+  author={Lee, Dayeol and Kohlbrenner, David and Shinde, Shweta and Asanovi{\'c}, Krste and Song, Dawn},
+  booktitle={Proceedings of the Fifteenth European Conference on Computer Systems},
+  pages={1--16},
+  year={2020}
+}
+
+@inproceedings{rosette,
+author = {Torlak, Emina and Bodik, Rastislav},
+title = {Growing Solver-Aided Languages with Rosette},
+year = {2013},
+isbn = {9781450324724},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2509578.2509586},
+doi = {10.1145/2509578.2509586},
+abstract = {SAT and SMT solvers have automated a spectrum of programming tasks, including program synthesis, code checking, bug localization, program repair, and programming with oracles. In principle, we obtain all these benefits by translating the program (once) to a constraint system understood by the solver. In practice, however, compiling a language to logical formulas is a tricky process, complicated by having to map the solution back to the program level and extend the language with new solver-aided constructs, such as symbolic holes used in synthesis.This paper introduces ROSETTE, a framework for designing solver-aided languages. ROSETTE is realized as a solver-aided language embedded in Racket, from which it inherits extensive support for meta-programming. Our framework frees designers from having to compile their languages to constraints: new languages, and their solver-aided constructs, are defined by shallow (library-based) or deep (interpreter-based) embedding in ROSETTE itself.We describe three case studies, by ourselves and others, of using ROSETTE to implement languages and synthesizers for web scraping, spatial programming, and superoptimization of bitvector programs.},
+booktitle = {Proceedings of the 2013 ACM International Symposium on New Ideas, New Paradigms, and Reflections on Programming \& Software},
+pages = {135–152},
+numpages = {18},
+keywords = {solver-aided languages},
+location = {Indianapolis, Indiana, USA},
+series = {Onward! 2013}
+}
+
+@article{trustingtrust,
+  title={Reflections on trusting trust},
+  author={Thompson, Ken},
+  journal={Communications of the ACM},
+  volume={27},
+  number={8},
+  pages={761--763},
+  year={1984},
+  publisher={ACM New York, NY, USA}
+}
+
+@article{stainless,
+  title={System FR: Formalized foundations for the Stainless verifier},
+  author={Hamza, Jad and Voirol, Nicolas and Kun{\v{c}}ak, Viktor},
+  journal={Proceedings of the ACM on Programming Languages},
+  volume={3},
+  number={OOPSLA},
+  pages={1--30},
+  year={2019},
+  publisher={ACM New York, NY, USA}
+}
+
+@inproceedings{sel,
+  title={seL4: Formal verification of an OS kernel},
+  author={Klein, Gerwin and Elphinstone, Kevin and Heiser, Gernot and Andronick, June and Cock, David and Derrin, Philip and Elkaduwe, Dhammika and Engelhardt, Kai and Kolanski, Rafal and Norrish, Michael and others},
+  booktitle={Proceedings of the ACM SIGOPS 22nd symposium on Operating systems principles},
+  pages={207--220},
+  year={2009}
+}
+
+@inproceedings{ironclad,
+  title={Ironclad Apps:$\{$End-to-End$\}$ Security via Automated $\{$Full-System$\}$ Verification},
+  author={Hawblitzel, Chris and Howell, Jon and Lorch, Jacob R and Narayan, Arjun and Parno, Bryan and Zhang, Danfeng and Zill, Brian},
+  booktitle={11th USENIX Symposium on Operating Systems Design and Implementation (OSDI 14)},
+  pages={165--181},
+  year={2014}
+}
+
+@inproceedings{dafny,
+author = {Leino, Rustan},
+title = {Dafny: An Automatic Program Verifier for Functional Correctness},
+booktitle = {16th International Conference, LPAR-16, Dakar, Senegal},
+year = {2010},
+month = {April},
+abstract = {Traditionally, the full verification of a program’s functional correctness has been obtained with pen and paper or with interactive proof assistants, whereas only reduced verification tasks, such as extended static checking, have enjoyed the automation offered by satisfiability-modulo-theories (SMT) solvers. More recently, powerful SMT solvers and well-designed program verifiers are starting to break that tradition, thus reducing the effort involved in doing full verification.
+
+This paper gives a tour of the language and verifier Dafny, which has been used to verify the functional correctness of a number of challenging pointer-based programs. The paper describes the features incorporated in Dafny, illustrating their use by small examples and giving a taste of how they are coded for an SMT solver. As a larger case study, the paper shows the full functional specification of the Schorr-Waite algorithm in Dafny.},
+publisher = {Springer Berlin Heidelberg},
+url = {https://www.microsoft.com/en-us/research/publication/dafny-automatic-program-verifier-functional-correctness-2/},
+pages = {348-370},
+edition = {16th International Conference, LPAR-16, Dakar, Senegal},
+}
+
+@Book{ isabelle,
+  author	= {Tobias Nipkow and Lawrence C. Paulson and Markus Wenzel},
+  title		= {Isabelle/HOL --- A Proof Assistant for Higher-Order Logic},
+  publisher	= {Springer},
+  series	= {LNCS},
+  volume	= 2283,
+  year		= 2002}

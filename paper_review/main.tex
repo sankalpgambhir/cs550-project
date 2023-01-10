@@ -1,0 +1,382 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage[backend=bibtex, style=numeric]{biblatex}
+\usepackage{hyperref}
+\usepackage{xspace}
+
+% code listings
+\usepackage{listings}
+
+\definecolor{codegreen}{rgb}{0,0.6,0}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.95}
+
+\lstdefinestyle{stolenstyle}{
+    backgroundcolor=\color{backcolour},
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{magenta},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,
+    breaklines=true,
+    captionpos=b,
+    keepspaces=true,
+    numbers=left,
+    numbersep=5pt,
+    showspaces=false,
+    showstringspaces=false,
+    showtabs=false,
+    tabsize=2
+}
+
+\lstset{style=stolenstyle}
+
+% ————————————————————————————————— Commands ————————————————————————————————— %
+
+\newcommand{\ie}{\textit{i.e.}\xspace}
+\newcommand{\amd}{\textsf{x86\_32}\xspace}
+\newcommand{\riscv}{\textsf{RISC-V}\xspace}
+\newcommand{\llvm}{\textsf{LLVM}\xspace}
+\newcommand{\bpf}{\textsf{BPF}\xspace}
+\newcommand{\serval}{Serval\xspace}
+\newcommand{\racket}{\textsf{Racket}\xspace}
+\newcommand{\rosette}{\textsf{Rosette}\xspace}
+\newcommand{\zthree}{\textsf{Z3}\xspace}
+\newcommand{\clang}{\textsf{C}\xspace}
+\newcommand{\gcc}{\textsf{gcc}\xspace}
+\newcommand{\cclang}{\textsf{clang}\xspace}
+
+    % notes
+\newcommand{\sankalp}[1]{\textcolor{red}{[Sankalp: #1]}}
+\newcommand{\charly}[1]{\textcolor{green}{[Charly: #1]}}
+\newcommand{\can}[1]{\textcolor{blue}{[Can: #1]}}
+
+% ———————————————————————————————— Meta-Data ————————————————————————————————— %
+
+\title{Review: Scaling symbolic evaluation for automated verification of systems
+code with \serval}
+%\subtitle{Formal Verification Background Paper Report}
+\author{
+    % alphabetic by last name
+    % Charly Castes \\ \texttt{charly.castes@epfl.ch} \and 
+    % Can Cebici\\ \texttt{can.cebici@epfl.ch} \and
+    % Sankalp Gambhir \\ \texttt{sankalp.gambhir@epfl.ch}
+    Charly Castes \qquad Can Cebeci \qquad Sankalp Gambhir
+    \\
+    \texttt{\{firstname.lastname\}@epfl.ch}
+    }
+
+
+    % biblatex
+\bibliography{biblio}
+
+% ——————————————————————————————— Quick Notes ———————————————————————————————— %
+
+% WARNING: might or might not be useful
+%
+% - With \serval developers write a system using standard languages and tools, such
+%   as C and GCC, as well as a specification using a language called Rosette (a
+%   dialect of Racket) to generate a query that can be checked by a SMT solver.
+% - Rosette provides a decidable subset of first-order logic.
+% - To create a new verifier for a given ISA, it suffice to write an interpreter
+%   in Rosette and with the help of the Serval library.
+% - Rosette has an helpful feature that allows finding performance bottle-necks,
+%   this can be used to identify what causes verification to be slow/hang within
+%   the interpreter.
+% - An example of performance bottleneck is when the PC becomes symbolic (i.e.
+%   after a conditional jump that might result in two different locations),
+%   interpretation becomes very expensive compared to a fixed-value PC. Serval
+%   provides domain-specific optimization, for instance through the `split-pc`
+%   functions which revert the state merging on PC, making it a concrete value
+%   instead of a symbolic one.
+% - Serval verifies that:
+%   1. If the invariants hold on the initial state, they hold for the final
+%      (symbolic) state.
+%   2. If the invariants hold and the initial state is mapped to the spec initial
+%      state (through a user-provided mapping function), then the final symbolic
+%      state is mapped to the final symbolic state of the specification through
+%      the same function.
+% - Systems such as kernel or hypervisors works by responding to events, such as
+%   booting or responding to a trap. When reacting to an event, the system is in a
+%   well known state, with the exception of some values (such as registers) than
+%   can depend on user programs and are therefore represented by a symbolic value.
+% - Serval uses `objdump` to read the assembly instructions, but `objdump` is not
+%   part of the trusted code base (TCB) as Serval also implements an encoding
+%   function that is used to validate that `objdump`'s output can indeed be
+%   re-encoded in the exact same binary.
+% - Serval represents memory as a set of disjoint blocks, similar to KLEE and
+%   ComCert.
+% - The paper describes a set of optimizations that should be applied at the
+%   interpreter or specification level in section 4.
+% - Serval itself is ~1200 LoC, each verifier is around ~1000 LoC (a bit less
+%   usually).
+
+% ————————————————————————————————— Document ————————————————————————————————— %
+
+\begin{document}
+\maketitle
+
+\section{Introduction}
+The paper describes \serval \cite{serval}, a framework for building Push-Button
+Verifiers (PBV) for system software, such as kernels, by performing symbolic
+execution on assembly code.
+The main motivation for PBV is to drastically reduce the cost of writing proofs,
+which are often measured in person-years and whose size can be orders of
+magnitude the size of the code for system software \cite{sel4}.
+\serval improves on previous approaches by (1) completely removing the need for
+writing proofs, and (2) proposing a portable approach for defining fully
+automated verifiers. 
+In the current implementation, these benefits come at the cost of being able to
+verify only programs that produces traces of bounded length, \ie{} programs with
+\textit{finite interfaces}.
+
+The paper evaluates \serval by building verifiers for \amd{}, \riscv{}, \llvm{},
+and \bpf{} instruction sets.
+These verifiers are then used to verify two previously verified systems
+(CertikOS \cite{certikos} and Komodo \cite{komodo}) and two existing but
+unverified systems (the Keystone monitor \cite{keystone} and the \bpf{}
+compiler).
+
+In this report we first give some background on push-button verification
+(\S\ref{context}), then give an overview of the \serval verification stack
+(\S\ref{serval}), detail why it is well suited for verifying system software
+(\S\ref{system}), and highlight some of the limitations of the proposed
+approach.
+
+\section{Context and Background}
+\label{context}
+
+Current methods for verifying systems software come with high proof effort. Both
+the use of interactive theorem provers (e.g. Isabelle/HOL \cite{isabelle}, Coq), and annotation
+based auto-active proof systems (Dafny \cite{dafny}) usually require time investments in the
+order of person-years. Among the well-known examples, the
+proof-to-implementation ratio varies from 4.8:1 (Ironclad \cite{ironclad}) to 20:1 (seL4 \cite{sel4})
+
+\textit{Push-button verification} is an alternative approach that reduces the proof
+burden at the cost of generalizability. 
+In order to be applicable, it requires the target software to be
+\textit{finite}, i.e., free of unbounded loops. 
+Push-button verifiers compile such software into a formula through symbolic
+evaluation, and then invoke a solver to verify desired properties. 
+While the finiteness limitation is restrictive, considering automated verification as a
+first-class goal in system design can enable the construction of practical,
+large-scale, push-button verified systems.
+Moreover, certain classes of systems software, for instance security monitors,
+naturally lend themselves well to finite designs and implementations
+
+Writing push-button verifiers is cumbersome and the verifiers are not reusable.
+A push-button verifier often needs a symbolic evaluator to be written for the
+specific system to be verified, as it needs to capture the relevant subset of
+the target language. In order to make symbolic evaluation scale to more complex
+software, the symbolic evaluator has to minimize path explosion, which requires
+domain-specific optimizations. The need to repeat this process per target system
+not only increases the required development effort but also makes the verified
+system less reliable, as the symbolic evaluator is inevitably trusted.
+
+
+
+
+\section{\serval Verification Stack} 
+\label{serval}
+
+\serval is a framework for building specialized verifiers operating at the
+instruction set level. Developers is defined a standard interpreter for a given
+instruction set which \serval then ``lifts" into a verifier. 
+By virtue of dynamic typing, a lifted interpreter can be readily used with both concrete and symbolic values.
+
+The framework itself is written \racket{}, a dynamically
+typed language, and builds on top of the \rosette{} symbolic evaluation library.
+%
+\rosette{} is a solver-aided programming language, which extends Racket to provide
+constructs for verification in a decidable fragment of first-order logic: with
+booleans, bit-vectors, uninterpreted functions, and quantifiers over finite
+domains.
+%
+
+
+To verify systems software with \serval, the developer needs to provide a raw
+instruction stream (obtained using standard system code and tools such as \clang{} and
+\gcc), and a specification.
+%
+The specification consists of four definitions: an abstract specification state $s$, a functional
+specification corresponding to the intended behavior $f_{spec}$, an abstraction
+function $AF$ that maps a concrete state $c$ to an abstract specification state, and a
+representation invariant $RI$ that must hold before and after the execution of every system service.
+\serval then checks that the concrete implementation is a \textit{refinement} of
+the abstract specification.
+
+To do so, \serval computes the symbolic states reached by running the
+implementation on concrete state $c$ and by running the functional specification
+on equivalent abstract state $s$, denoted $f_{impl}(c)$ and $f_{spec}(s)$
+respectively. Then, it checks that the representation invariant is maintained:
+
+$$
+RI(c) \Rightarrow RI(f_{impl}(c))
+$$
+
+and that the implementation and the specification move in lock-step:
+
+$$
+ (RI(c) \land AF(c) = s) \Rightarrow AF(f_{impl}(c)) = f_{spec}(s)
+$$
+
+
+% \section{Temp: Why is Serval/Rosette?}
+% - serval modularizes the symbolic execution
+% - allows for optimizations based on the memory model under consideration
+% - rosette's extensive symbolic framework allows for easy and natural expression of theorems
+
+Instead of implementing its own symbolic execution framework, \serval relies on
+the extensive framework provided by \rosette, from which it inherits several
+powerful features, such as its \emph{symbolic profiling}, which identifies
+bottlenecks in execution and verification to assist iterative code and
+specification development.
+
+Writing a specification requires a deep embedding of the system state in
+\racket/\rosette. However, as opposed to high-level functional verification,
+\serval pushes the embedding to be performed on the level of the system
+architecture, so the modelling is inherently finitely-structured
+(register-model), which makes it more easily amenable to automated verification. 
+
+The \serval implementation models its memory within \racket as well, which allow
+for optimizations for the symbolic execution at runtime. In particular, \serval
+also implements optimizations possibly unsound for symbolic execution by adding
+extra verification conditions to account for issues like overflow in the
+specific program path. In essence, this implements conditional rewrites, and
+allows for significant reduction in path explosion, by assisting state merging
+during the execution. 
+
+Writing an interpreter on top of \serval makes these optimizations uniformly
+available, alongside \rosette's wide array of solver-aided debugging and
+synthesizing features. Based on the generation of unsat-cores from solvers,
+\rosette can identify problematic sections (termed \emph{localizing}
+\cite{rosette}) of functions and even synthesize equivalent functions for
+reduction or function patches for debugging.
+
+While \rosette's framework would allow for inserting a rich array of
+intermediate conditions to assist solving akin to Stainless \cite{stainless},
+\serval bypasses this in favor of automation, limiting it to verification of
+finite interfaces. We believe there is a different balance that can be struck
+whilst maintaining a similar level of specification from the developers, but
+extend \serval to then support a much larger class of systems.
+
+Given this extension, it may be interesting to explore ideas such as termination
+checking and reachability for black-box binaries.
+
+% Todo: execution model i.e. trap handlers
+
+\section{Verifying Systems Software}
+\label{system}
+
+Serval targets the verification of system code, such as OS kernels and security
+monitors.
+This imposes constraints on the choice of implementation language, size of the
+trusted code base and requires special considerations regarding the control flow
+of the program.
+
+\subsection{Assembly-Level Verification}
+
+System software are subject to strict requirements regarding both performance
+and security.
+
+From a performance point of view, system software must of course execute fast,
+but more importantly with predictable latency.
+In particular, higher level languages with automatic garbage collections can not
+be used due to the GC pauses.
+Regarding security, system software aim to minimize the trusted code base (TCB).
+For bare metal kernels or security monitors the TCB usually consists in the
+compiler and verification toolchains.
+
+To address both issues, Serval takes the stance of verifying assembly code
+directly.
+This makes Serval compatible with existing toolchain such as \gcc{} or \cclang{}
+without including the whole compiler in the TCB, effectively preventing compiler
+backdoor attacks \cite{trustingtrust}.
+In practice, the TCB of a program verified using Serval consists in Serval
+itself (1200 LoC), the interpreter (usually around 1000 LoC), \rosette{} and
+\racket{}.
+
+\subsection{Execution Model}
+
+The control flow of privileged system software usually differs from those of
+userspace programs.
+The life-cycles of a kernel starts with an initial boot sequence followed to
+a context-switch to isolated user-space programs.
+At that point, the system is fully initialized and will regain control only
+through well defined entry points in reaction to user requests (\ie system
+calls), exceptions, or hardware interrupts.
+The different handlers for those events are usually short-lived, and in the case
+of security monitors mostly perform checks before granting access to a resource.
+Those properties make handler functions good candidate for push-button
+verification, because they often only allow for a finite number of execution
+traces that can be exhaustively checked using symbolic execution.
+
+\section{Limitations}
+
+Serval trusts the verification toolchain, the specification library, and hardware.
+As mentioned above, Serval treats the interpreter used to construct a symbolic
+evaluator as a specification for the target instruction set, and thus trusts it.
+Any toolchain that may be used to compile source code to the target instruction
+set, however, is not trusted.
+
+Serval can not reason about concurrent code, it assumes a single-core,
+single-threaded environment. 
+Similarly to prior work, it also assumes that interrupts are disabled while
+executing security monitor code.
+
+Lastly, Serval sacrifices generality in favor of proof automation. 
+Adopting the approach of push-button verification, it requires systems to be
+finite and it can not deal with implementation code that includes
+potentially unbounded loops. It is based on naive symbolic evaluation and it
+does not make use of state-of-the art verification techniques that allow other
+verification frameworks to automatically infer measures or loop invariants.
+
+\section{Conclusion}
+
+The \serval framework proposes an interesting solution to the push-button
+verification of system software, but also suffers from severe limitations. Some
+of these limitations could be lifted by extending \serval with auto-active components,
+such as loop invariant annotations.
+
+% single core, interrupt disables, finite interface
+
+% \section{Preliminaries}
+% State the technical details that are necessary to understand the paper. It is
+% generally a collection of definitions, concepts and notations with potentially a
+% few preliminary results. It can be, for example the mathematical framework in
+% which the topic of your paper is expressed. In particular, fix the notation you
+% will be using for your review.
+%
+% \section{Body}
+% Explain the paper, in your own words. Don't go into as many details as the
+% original text, but the person reading your review should have a general
+% understanding of the paper's results and how those results can be obtained. The
+% structure and content of this section of course heavily depends on the paper
+% itself. Don't hesitate to split it in multiple sections or subsections, for
+% example:
+% \subsection{An algorithm for whatever problem we try to solve}
+% If your paper contains theorems, sketch the proofs of important theorems.
+%
+% \subsection{Benchmarks}
+% If it contains benchmarks, show the key scores or results.
+%
+% You can follow the structure of the paper you're reviewing, but write with your
+% own words.
+%
+% \section{Conclusion}
+% Recall  briefly what the paper achieves, and how it is new. Express your
+% critical skil on the paper and explain what you think are the strong and weak
+% points of the paper. Also tell how you could potentially use the paper's results
+% in your future project. You can also suggest further work or extensions to the
+% paper.
+
+\printbibliography
+
+\end{document}
